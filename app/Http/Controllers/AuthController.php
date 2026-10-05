@@ -16,6 +16,8 @@ use Illuminate\Support\Str;
 use Illuminate\View\View;
 use App\Events\OtpRequested;
 use App\Services\OtpService;
+use App\Events\EmailVerificationRequested;
+use App\Services\EmailResendService;
 
 class AuthController extends Controller
 {
@@ -68,7 +70,7 @@ class AuthController extends Controller
         return view('auth.login');
     }
 
-    public function login(Request $request, OtpService $otp): RedirectResponse
+        public function login(Request $request, OtpService $otp, EmailResendService $resends): RedirectResponse
     {
         $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
 
@@ -85,10 +87,22 @@ class AuthController extends Controller
 
         // Order from the plan: not locked -> email exists -> email verified -> password.
         // Every one of these failures looks the same and does the same amount of hashing work.
-        if (! $user || $user->is_locked || $user->email_verified_at === null) {
+        if (! $user || $user->is_locked) {
             Hash::make($credentials['password']);
 
             return $this->loginFailed($request);
+        }
+
+        // Email not verified yet. The password is checked first, so the "not verified" page is only
+        // shown to someone who knows the right password. A wrong password gets the generic error.
+        if ($user->email_verified_at === null) {
+            if (! Hash::check($credentials['password'], $user->password_hash)) {
+                $this->recordFailure($user);
+
+                return $this->loginFailed($request);
+            }
+
+            return $this->sendToEmailVerification($user, $request, $resends);
         }
 
         if (! Hash::check($credentials['password'], $user->password_hash)) {
@@ -127,6 +141,27 @@ class AuthController extends Controller
         return redirect()->route('login')
             ->withInput($request->only('email'))
             ->withErrors(['login' => 'Invalid email or password']);
+    }
+
+    // Right password but email not verified: send a new link (within the 5 per hour limit)
+    // and open the "Check your email" page.
+    private function sendToEmailVerification(User $user, Request $request, EmailResendService $resends): RedirectResponse
+    {
+        if ($resends->exhausted($request)) {
+            $minutes = $resends->minutesLeft($request);
+
+            return redirect()->route('check-email')
+                ->with('email', $user->email)
+                ->withErrors(['email' => 'Your email is not verified yet, and you have used all ' . EmailResendService::MAX . ' resends for now. Please try again in ' . $minutes . ' minute' . ($minutes === 1 ? '' : 's') . '.']);
+        }
+
+        $left = $resends->consume($request);
+
+        event(new EmailVerificationRequested($user));
+
+        return redirect()->route('check-email')
+            ->with('email', $user->email)
+            ->with('status', 'Your email is not verified yet. We sent a new verification link to your inbox. You have ' . $left . ' resend' . ($left === 1 ? '' : 's') . ' left this hour.');
     }
 
     // Only called for a wrong password on an existing, verified, unlocked account.

@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use App\Services\EmailResendService;
 
 class VerificationController extends Controller
 {
@@ -18,13 +19,25 @@ class VerificationController extends Controller
         return view('auth.check-email');
     }
 
-    public function resend(Request $request): RedirectResponse
+    public function resend(Request $request, EmailResendService $resends): RedirectResponse
     {
         $request->validate([
             'email' => ['required', 'email', 'max:255'],
         ]);
 
         $email = Str::lower(trim($request->input('email')));
+
+        // At most 5 resends per IP address per hour (shared with the login page).
+        if ($resends->exhausted($request)) {
+            $minutes = $resends->minutesLeft($request);
+
+            return redirect()->route('check-email')
+                ->with('email', $email)
+                ->withErrors(['email' => 'You have used all ' . EmailResendService::MAX . ' resends for now. Please try again in ' . $minutes . ' minute' . ($minutes === 1 ? '' : 's') . '.']);
+        }
+
+        $left = $resends->consume($request);
+
         $user = User::where('email', $email)->first();
 
         // Same message every time, so nobody can find out which emails are registered.
@@ -34,7 +47,7 @@ class VerificationController extends Controller
 
         return redirect()->route('check-email')
             ->with('email', $email)
-            ->with('status', 'If that email is registered and not verified yet, we sent a new verification link. Please check your inbox.');
+            ->with('status', 'If that email is registered and not verified yet, we sent a new verification link. Please check your inbox. You have ' . $left . ' resend' . ($left === 1 ? '' : 's') . ' left this hour.');
     }
 
     public function verify(Request $request, TokenService $tokens): View|RedirectResponse
