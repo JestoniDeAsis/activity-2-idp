@@ -9,6 +9,7 @@
     --border: #d1d5db;
     --success-bg: #ecfdf5;
     --success-text: #065f46;
+    --shell: 1400px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -159,7 +160,7 @@ select:disabled, input:disabled { background: #f3f4f6; color: var(--muted); curs
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    max-width: 1400px;
+    max-width: var(--shell);
     margin: 0 auto;
     padding: 0.7rem 1rem;
 }
@@ -172,7 +173,7 @@ select:disabled, input:disabled { background: #f3f4f6; color: var(--muted); curs
 .nav-menu.open { display: flex; }
 
 .nav-links { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.nav-link { display: block; padding: 0.7rem 0.25rem; color: #e5e7eb; text-decoration: none; }
+.nav-link { display: block; padding: 0.7rem 0; color: #e5e7eb; text-decoration: none; white-space: nowrap; }
 .nav-link:hover { color: #ffffff; }
 
 .profile { position: relative; margin-top: 0.5rem; }
@@ -198,6 +199,7 @@ select:disabled, input:disabled { background: #f3f4f6; color: var(--muted); curs
     font-weight: 700;
     font-size: 0.9rem;
 }
+.profile-btn > span:last-child { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-menu {
     margin-top: 0.4rem;
     min-width: 10rem;
@@ -221,17 +223,19 @@ select:disabled, input:disabled { background: #f3f4f6; color: var(--muted); curs
 
 .hero {
     min-height: 100vh;
+    min-height: 100svh;
     display: flex;
     align-items: center;
-    padding: 6rem 1.25rem 3rem;
+    padding: 6rem 0 3rem;
     background:
         linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.72)),
         url('../images/hero.jpg') center / cover no-repeat,
         linear-gradient(135deg, #1e3a8a, #111827);
 }
-.hero-content { width: 100%; max-width: 40rem; margin: 0 auto; }
+.hero-content { width: 100%; max-width: var(--shell); margin: 0 auto; padding: 0 1rem; }
+.hero-content > * { max-width: 40rem; }
 .hero-eyebrow { margin: 0 0 0.5rem; color: #93c5fd; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-size: 0.85rem; }
-.hero h1 { margin: 0 0 1rem; font-size: clamp(2rem, 7vw, 3.5rem); line-height: 1.1; }
+.hero h1 { margin: 0 0 1rem; font-size: clamp(2rem, 7vw, 3.5rem); line-height: 1.1; overflow-wrap: anywhere; }
 .hero-text { margin: 0 0 1.75rem; color: #e5e7eb; font-size: 1.05rem; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 .btn-lg { padding: 0.9rem 1.8rem; font-size: 1.05rem; }
@@ -250,17 +254,18 @@ body.modal-open { overflow: hidden; }
     flex-direction: column;
     width: 100%;
     max-height: 92vh;
+    max-height: 92dvh;
     border-radius: 16px 16px 0 0;
     background: #ffffff;
     color: var(--text);
     box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.35);
 }
-.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem 0.5rem; }
+.modal-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem 0.5rem; }
 .modal-header h2 { margin: 0; font-size: 1.25rem; }
 .modal-close { padding: 0 0.5rem; border: 0; background: none; color: var(--muted); font-size: 1.8rem; line-height: 1; cursor: pointer; }
 .modal-close:hover { color: var(--text); }
 
-.tabs { display: flex; gap: 0.25rem; padding: 0 1rem; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tabs { flex-shrink: 0; display: flex; gap: 0.25rem; padding: 0 1rem; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; }
 .tab {
     padding: 0.8rem 1rem;
     border: 0;
@@ -275,7 +280,7 @@ body.modal-open { overflow: hidden; }
 .tab:hover { color: var(--text); }
 .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 
-.modal-body { padding: 1rem 1.25rem 1.5rem; overflow-y: auto; }
+.modal-body { flex: 1 1 auto; min-height: 0; padding: 1rem 1.25rem 1.5rem; overflow-y: auto; }
 
 .table-wrap { overflow-x: auto; }
 .table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 0.9rem; }
@@ -284,27 +289,24 @@ body.modal-open { overflow: hidden; }
 
 @media (min-width: 640px) {
     .modal { align-items: center; padding: 1.5rem; }
-    .modal-dialog { max-width: 860px; max-height: 85vh; border-radius: 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
-    .hero { padding-left: 2rem; padding-right: 2rem; }
+    .modal-dialog { max-width: 860px; max-height: 85vh; max-height: 85dvh; border-radius: 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
 }
 
-@media (min-width: 768px) {
+/* The full menu needs about 960px, so the hamburger is used below that. */
+@media (min-width: 960px) {
+    .navbar-inner { flex-wrap: nowrap; }
     .nav-toggle { display: none; }
     .nav-menu { display: flex; flex-direction: row; align-items: center; width: auto; gap: 1.5rem; padding: 0; }
     .nav-links { flex-direction: row; gap: 1.25rem; }
     .nav-link { padding: 0.4rem 0; }
     .profile { margin-top: 0; }
     .profile-menu { position: absolute; top: 100%; right: 0; }
-    .hero-content { margin: 0; }
-}
-
-@media (min-width: 1200px) {
-    .hero { padding-left: 6vw; }
 }
 
 @media (min-width: 1800px) {
+    :root { --shell: 1680px; }
     html { font-size: 18px; }
-    .hero-content { max-width: 56rem; }
+    .hero-content > * { max-width: 56rem; }
     .modal-dialog { max-width: 1100px; }
 }
 
@@ -366,3 +368,10 @@ body.modal-open { overflow: hidden; }
 }
 
 .resend-form { margin-top: 1rem; }
+
+/* ---------- Keyboard focus on dark / modal controls ---------- */
+.navbar a:focus-visible, .navbar button:focus-visible,
+.tab:focus-visible, .modal-close:focus-visible, .profile-menu-item:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 2px;
+}
