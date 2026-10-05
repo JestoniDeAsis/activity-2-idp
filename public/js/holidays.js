@@ -15,7 +15,7 @@
         { key: 'islamic', title: 'Islamic Holidays', badge: 'Islamic Holiday' }
     ];
 
-    var cache = {};      // year -> holidays, kept only in this page's memory
+    var cache = {};      // year -> server answer, kept only in this page's memory
     var token = 0;       // ignores answers that arrive after a newer request
     var started = false;
     var select, status, results;
@@ -104,6 +104,9 @@
         if (item.local_name && item.local_name !== item.name) {
             info.appendChild(h('div', 'hint', item.local_name));
         }
+        if (item.tentative) {
+            info.appendChild(h('div', 'hint', 'Tentative date'));
+        }
         info.appendChild(h('span', 'badge badge-' + type.key, type.badge));
 
         box.appendChild(date);
@@ -111,7 +114,21 @@
         return box;
     }
 
-    function render(year, holidays) {
+    // Short note under the Islamic title: the moon-sighting warning and the Calendarific credit.
+    function islamicNote() {
+        var note = h('p', 'hint', 'Dates are proclaimed each year after the moon sighting and can shift by a day. Source: ');
+        var link = h('a', '', 'Calendarific');
+        link.href = 'https://calendarific.com';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        note.appendChild(link);
+        note.appendChild(document.createTextNode('.'));
+        return note;
+    }
+
+    function render(year, data) {
+        var holidays = data.holidays;
+
         results.innerHTML = '';
         status.textContent = holidays.length + ' official holidays in ' + year + '.';
 
@@ -124,8 +141,12 @@
             section.appendChild(title);
 
             if (!items.length) {
-                section.appendChild(h('p', 'hint', 'None listed for ' + year + '.'));
+                var empty = (type.key === 'islamic' && data.islamic_error)
+                    ? data.islamic_error
+                    : 'None listed for ' + year + '.';
+                section.appendChild(h('p', 'hint', empty));
             } else {
+                if (type.key === 'islamic') { section.appendChild(islamicNote()); }
                 var grid = h('div', 'holiday-grid');
                 items.forEach(function (item) { grid.appendChild(card(item, type)); });
                 section.appendChild(grid);
@@ -159,8 +180,9 @@
                     showError(year, res.body.message);
                     return;
                 }
-                cache[year] = res.body.holidays;
-                render(year, res.body.holidays);
+                // A year with an Islamic-data problem is not kept, so choosing it again retries.
+                if (!res.body.islamic_error) { cache[year] = res.body; }
+                render(year, res.body);
             })
             .catch(function () {
                 if (n !== token) { return; }
