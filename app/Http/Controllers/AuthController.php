@@ -148,11 +148,66 @@ class AuthController extends Controller
         return redirect()->route('landing');
     }
 
+    // public function login(Request $request, OtpService $otp): RedirectResponse
+    // {
+    //     $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
+
+    //     $credentials = $request->validate([
+    //         'email' => ['required', 'string', 'email', 'max:255'],
+    //         'password' => ['required', 'string', 'max:255'],
+    //     ], [
+    //         'email.required' => 'Email is required.',
+    //         'email.email' => 'Enter a valid email address.',
+    //         'password.required' => 'Password is required.',
+    //     ]);
+
+    //     $user = User::where('email', $credentials['email'])->first();
+
+    //     // PDF order: not locked -> email exists and is verified -> password hash.
+    //     // Every one of these failures looks the same and does the same amount of hashing work.
+    //     if (! $user || $user->is_locked || $user->email_verified_at === null) {
+    //         Hash::make($credentials['password']);
+
+    //         return $this->loginFailed($request);
+    //     }
+
+    //     if (! Hash::check($credentials['password'], $user->password_hash)) {
+    //         $this->recordFailure($user);
+
+    //         return $this->loginFailed($request);
+    //     }
+
+    //     // Success: reset the counter and start a fresh session.
+    //     if ($user->failed_login_attempts > 0) {
+    //         $user->update(['failed_login_attempts' => 0]);
+    //     }
+
+    //     $request->session()->regenerate();
+
+    //     // Mobile not verified yet: the password was right, but the login only finishes after
+    //     // the code is entered, so user_id is NOT set yet (typing /landing will not work).
+    //     if (! $user->mobile_verified) {
+    //         $request->session()->put('otp_user_id', $user->id);
+    //         $request->session()->put('otp_login_ok', true);
+
+    //         if (! $otp->active($user)) {
+    //             event(new OtpRequested($user));
+    //         }
+
+    //         return redirect()->route('verify-mobile');
+    //     }
+
+    //     $request->session()->put('user_id', $user->id);
+
+    //     return redirect()->route('landing');
+    // }
+
     private function loginFailed(Request $request): RedirectResponse
     {
         return redirect()->route('login')
             ->withInput($request->only('email'))
             ->withErrors(['login' => 'Invalid email or password. If your account is locked, check your email for the unlock link.']);
+            // ->withErrors(['login' => 'Invalid email or password']);
     }
 
     // Right password but email not verified: send a new link and open the "Check your email" page.

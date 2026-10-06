@@ -22,7 +22,8 @@ class SendUnlockEmail
 
         try {
             // issue() deletes old account_unlock tokens for this user first.
-            $token = $this->tokens->issue($user, 'account_unlock', now()->addHour());
+            // $token = $this->tokens->issue($user, 'account_unlock', now()->addHour());
+            $token = $this->tokens->issue($user, 'account_unlock', now()->addHours(24));
             Mail::to($user->email)->send(new AccountLockedMail($user, $token));
         } catch (Throwable $e) {
             Log::error('Unlock email failed: ' . $e->getMessage());

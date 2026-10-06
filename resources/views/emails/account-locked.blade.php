@@ -17,7 +17,7 @@
                 <a href="{{ $unlockUrl }}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;display:inline-block;">Unlock My Account</a>
             </p>
 
-            <p>For your protection, the unlock link only works after a 2-minute cooling period that starts when your account was locked. If you open it too early, wait a moment and try again. The link expires in 1 hour.</p>
+            <p>For your protection, the unlock link only works after a 2-minute cooling period that starts when your account was locked. If you open it too early, wait a moment and try again. The link expires in 24 hour.</p>
 
             <p>If you did not make these login attempts, you can ignore this message. Your account will stay locked until the link is used.</p>
 
