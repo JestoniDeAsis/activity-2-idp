@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use App\Services\EmailResendService;
+use App\Services\OtpService;
 
 class VerificationController extends Controller
 {
@@ -19,7 +20,7 @@ class VerificationController extends Controller
         return view('auth.check-email');
     }
 
-    public function resend(Request $request, EmailResendService $resends): RedirectResponse
+    public function resend(Request $request, EmailResendService $resends, OtpService $otp): RedirectResponse
     {
         $request->validate([
             'email' => ['required', 'email', 'max:255'],
@@ -27,7 +28,44 @@ class VerificationController extends Controller
 
         $email = Str::lower(trim($request->input('email')));
 
-        // At most 5 resends per IP address per hour (shared with the login page).
+        // Registered (or logged in with the right password) in this browser, and the email was
+        // verified meanwhile (other tab or phone): go on to the mobile step. No email is sent
+        // and no resend is used.
+        $pending = $request->session()->has('pending_user_id')
+            ? User::find($request->session()->get('pending_user_id'))
+            : null;
+
+        if ($pending && $pending->email === $email && $pending->email_verified_at !== null) {
+            if ($pending->mobile_verified) {
+                return redirect()->route('login')->with('status', 'Your account is already verified. You can now log in.');
+            }
+
+            $request->session()->regenerate();
+            $request->session()->put('otp_user_id', $pending->id);
+            $request->session()->forget('otp_login_ok');
+
+            if (! $otp->active($pending)) {
+                event(new OtpRequested($pending));
+            }
+
+            return redirect()->route('verify-mobile');
+        }
+
+        $user = User::where('email', $email)->first();
+
+        if (! $user) {
+            return redirect()->route('check-email')
+                ->with('email', $email)
+                ->withErrors(['email' => 'There is no account with this email yet. Please register first.']);
+        }
+
+        if ($user->email_verified_at !== null) {
+            return redirect()->route('check-email')
+                ->with('email', $email)
+                ->with('status', 'This email is already verified. You can log in.');
+        }
+
+        // Only a real send uses up one of the 5 resends per IP address per hour (shared with the login page).
         if ($resends->exhausted($request)) {
             $minutes = $resends->minutesLeft($request);
 
@@ -38,16 +76,11 @@ class VerificationController extends Controller
 
         $left = $resends->consume($request);
 
-        $user = User::where('email', $email)->first();
-
-        // Same message every time, so nobody can find out which emails are registered.
-        if ($user && $user->email_verified_at === null) {
-            event(new EmailVerificationRequested($user));
-        }
+        event(new EmailVerificationRequested($user));
 
         return redirect()->route('check-email')
             ->with('email', $email)
-            ->with('status', 'If that email is registered and not verified yet, we sent a new verification link. Please check your inbox. You have ' . $left . ' resend' . ($left === 1 ? '' : 's') . ' left this hour.');
+            ->with('status', 'We sent a new verification link to your inbox. You have ' . $left . ' resend' . ($left === 1 ? '' : 's') . ' left this hour.');
     }
 
     public function verify(Request $request, TokenService $tokens): View|RedirectResponse

@@ -60,6 +60,9 @@ class AuthController extends Controller
 
         event(new UserRegistered($user));
 
+        // Remembers who just registered in this browser (used by the Resend button).
+        $request->session()->put('pending_user_id', $user->id);
+
         return redirect()->route('check-email')->with('email', $user->email);
     }
 
@@ -157,12 +160,14 @@ class AuthController extends Controller
     // and open the "Check your email" page.
     private function sendToEmailVerification(User $user, Request $request, EmailResendService $resends): RedirectResponse
     {
+        // The password was right, so remember who this is (used by the Resend button).
+        $request->session()->put('pending_user_id', $user->id);
+
         if ($resends->exhausted($request)) {
             $minutes = $resends->minutesLeft($request);
 
             return redirect()->route('check-email')
-                ->with('email', $user->email)
-                ->withErrors(['email' => 'Your email is not verified yet, and you have used all ' . EmailResendService::MAX . ' resends for now. Please try again in ' . $minutes . ' minute' . ($minutes === 1 ? '' : 's') . '.']);
+                ->with('email', $user->email);
         }
 
         $left = $resends->consume($request);
