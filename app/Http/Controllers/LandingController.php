@@ -22,7 +22,11 @@ class LandingController extends Controller
         }
 
         // Assumption for "accessible user accounts": every registered user (safe columns only).
-        $accounts = User::orderBy('created_at')->get([
+        // $accounts = User::orderBy('created_at')->get([
+        
+        // Assumption for "accessible user accounts": accounts that can log in, meaning a verified email
+        // (a locked account stays in the list with its "Locked" label). Safe columns only.
+        $accounts = User::whereNotNull('email_verified_at')->orderBy('created_at')->get([
             'id', 'first_name', 'middle_initial', 'last_name', 'email',
             'email_verified_at', 'mobile_verified', 'is_locked', 'created_at',
         ]);

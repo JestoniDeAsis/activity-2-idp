@@ -375,3 +375,53 @@ body.modal-open { overflow: hidden; }
     outline: 2px solid #93c5fd;
     outline-offset: 2px;
 }
+
+/* ---------- Holiday month calendar ---------- */
+.calendar {
+    max-width: 32rem;
+    margin-bottom: 1.5rem;
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #ffffff;
+}
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+.cal-title { font-weight: 700; }
+.cal-nav {
+    width: 2.2rem;
+    height: 2.2rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--text);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.cal-nav:hover:not(:disabled) { background: #f3f4f6; }
+.cal-nav:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow { padding: 0.2rem 0; color: var(--muted); font-size: 0.7rem; font-weight: 700; text-align: center; text-transform: uppercase; }
+.cal-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: #f9fafb;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+}
+.cal-empty { background: transparent; }
+.cal-holiday { font-weight: 700; cursor: pointer; }
+.cal-regular { background: #dbeafe; color: #1e40af; }
+.cal-special { background: #fef3c7; color: #92400e; }
+.cal-islamic { background: #ccfbf1; color: #115e59; }
+.cal-today { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+.cal-detail { margin-top: 0.6rem; min-height: 2.5rem; font-size: 0.9rem; }
+.cal-line { margin-bottom: 0.3rem; }

@@ -15,10 +15,18 @@
         { key: 'islamic', title: 'Islamic Holidays', badge: 'Islamic Holiday' }
     ];
 
+    var LABELS = { regular: 'Regular Holiday', special: 'Special Non-Working Day', islamic: 'Islamic Holiday' };
+    var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
     var cache = {};      // year -> server answer, kept only in this page's memory
     var token = 0;       // ignores answers that arrive after a newer request
     var started = false;
     var select, status, results;
+
+    var current = null;  // what is on screen now: { year, holidays }
+    var calMonth = 0;    // month shown in the calendar, 0 to 11
+    var calBox = null;
 
     // Builds elements with textContent only, so nothing from the API is ever treated as HTML.
     function h(tag, className, content) {
@@ -27,6 +35,8 @@
         if (content !== undefined) { node.textContent = content; }
         return node;
     }
+
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
 
     function build() {
         root.innerHTML = '';
@@ -38,8 +48,8 @@
 
         select = h('select');
         select.id = 'holiday-year';
-        var current = new Date().getFullYear();
-        var initial = Math.min(Math.max(current, minYear), maxYear);
+        var currentYear = new Date().getFullYear();
+        var initial = Math.min(Math.max(currentYear, minYear), maxYear);
         for (var y = minYear; y <= maxYear; y++) {
             var opt = h('option', '', String(y));
             opt.value = String(y);
@@ -89,6 +99,107 @@
         };
     }
 
+    // ---------- Month calendar ----------
+
+    function drawCalendar() {
+        var year = current.year;
+        var monthKey = year + '-' + pad(calMonth + 1) + '-';
+
+        var byDate = {};
+        current.holidays.forEach(function (x) {
+            if (!byDate[x.date]) { byDate[x.date] = []; }
+            byDate[x.date].push(x);
+        });
+
+        calBox.innerHTML = '';
+
+        // Header: previous / month name / next (inside the selected year only).
+        var head = h('div', 'cal-head');
+
+        var prev = h('button', 'cal-nav', '\u2039');
+        prev.type = 'button';
+        prev.setAttribute('aria-label', 'Previous month');
+        prev.disabled = calMonth === 0;
+        prev.addEventListener('click', function () { calMonth -= 1; drawCalendar(); });
+
+        var next = h('button', 'cal-nav', '\u203A');
+        next.type = 'button';
+        next.setAttribute('aria-label', 'Next month');
+        next.disabled = calMonth === 11;
+        next.addEventListener('click', function () { calMonth += 1; drawCalendar(); });
+
+        head.appendChild(prev);
+        head.appendChild(h('div', 'cal-title', MONTHS[calMonth] + ' ' + year));
+        head.appendChild(next);
+
+        // Details under the grid: the month's holidays, or the day that was clicked.
+        var detail = h('div', 'cal-detail');
+        detail.setAttribute('aria-live', 'polite');
+
+        function showList(list, emptyText) {
+            detail.innerHTML = '';
+            if (!list.length) {
+                detail.appendChild(h('div', 'hint', emptyText));
+                return;
+            }
+            list.forEach(function (x) {
+                var p = dateParts(x.date);
+                var line = h('div', 'cal-line');
+                line.appendChild(h('span', 'badge badge-' + x.type, LABELS[x.type]));
+                line.appendChild(document.createTextNode(
+                    ' ' + p.month + ' ' + p.day + ' (' + p.weekday + ') ' + x.name + (x.tentative ? ' (tentative date)' : '')
+                ));
+                detail.appendChild(line);
+            });
+        }
+
+        function bind(cell, list) {
+            cell.addEventListener('click', function () { showList(list, ''); });
+        }
+
+        // Grid: weekday names, blank cells before the 1st, then the days.
+        var grid = h('div', 'cal-grid');
+        WEEKDAYS.forEach(function (w) { grid.appendChild(h('div', 'cal-dow', w)); });
+
+        var first = new Date(year, calMonth, 1).getDay();
+        var days = new Date(year, calMonth + 1, 0).getDate();
+        var now = new Date();
+        var todayKey = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+
+        for (var i = 0; i < first; i++) {
+            grid.appendChild(h('div', 'cal-cell cal-empty'));
+        }
+
+        for (var d = 1; d <= days; d++) {
+            var key = monthKey + pad(d);
+            var list = byDate[key];
+            var cell;
+
+            if (list) {
+                var names = list.map(function (x) { return x.name; }).join(', ');
+                cell = h('button', 'cal-cell cal-holiday cal-' + list[0].type, String(d));
+                cell.type = 'button';
+                cell.title = names;
+                cell.setAttribute('aria-label', MONTHS[calMonth] + ' ' + d + ': ' + names);
+                bind(cell, list);
+            } else {
+                cell = h('div', 'cal-cell', String(d));
+            }
+
+            if (key === todayKey) { cell.classList.add('cal-today'); }
+            grid.appendChild(cell);
+        }
+
+        calBox.appendChild(head);
+        calBox.appendChild(grid);
+        calBox.appendChild(detail);
+
+        var monthList = current.holidays.filter(function (x) { return x.date.indexOf(monthKey) === 0; });
+        showList(monthList, 'No holidays in ' + MONTHS[calMonth] + '.');
+    }
+
+    // ---------- Cards ----------
+
     function card(item, type) {
         var parts = dateParts(item.date);
 
@@ -129,8 +240,21 @@
     function render(year, data) {
         var holidays = data.holidays;
 
+        // A new year starts at January (or the current month for the current year).
+        // Re-showing the same year keeps the month the user was looking at.
+        if (!current || current.year !== year) {
+            var now = new Date();
+            calMonth = (year === now.getFullYear()) ? now.getMonth() : 0;
+        }
+        current = { year: year, holidays: holidays };
+
         results.innerHTML = '';
         status.textContent = holidays.length + ' official holidays in ' + year + '.';
+
+        calBox = h('section', 'calendar');
+        calBox.setAttribute('aria-label', 'Holiday calendar');
+        results.appendChild(calBox);
+        drawCalendar();
 
         TYPES.forEach(function (type) {
             var items = holidays.filter(function (x) { return x.type === type.key; });
