@@ -216,7 +216,9 @@
             info.appendChild(h('div', 'hint', item.local_name));
         }
         if (item.tentative) {
-            info.appendChild(h('div', 'hint', 'Tentative date'));
+            info.appendChild(h('div', 'hint', 'Tentative date (not proclaimed yet)'));
+        } else if (item.source) {
+            info.appendChild(h('div', 'hint', item.source));
         }
         info.appendChild(h('span', 'badge badge-' + type.key, type.badge));
 
@@ -227,14 +229,7 @@
 
     // Short note under the Islamic title: the moon-sighting warning and the Calendarific credit.
     function islamicNote() {
-        var note = h('p', 'hint', 'Dates are proclaimed each year after the moon sighting and can shift by a day. Source: ');
-        var link = h('a', '', 'Calendarific');
-        link.href = 'https://calendarific.com';
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        note.appendChild(link);
-        note.appendChild(document.createTextNode('.'));
-        return note;
+        return h('p', 'hint', 'Dates follow the presidential proclamations, based on the National Commission on Muslim Filipinos (NCMF) recommendation. Dates marked tentative are not proclaimed yet and can shift by a day.');
     }
 
     function render(year, data) {
