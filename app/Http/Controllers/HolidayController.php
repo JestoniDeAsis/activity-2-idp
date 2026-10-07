@@ -38,13 +38,9 @@ class HolidayController extends Controller
             return response()->json(['message' => "No holiday data was returned for {$year}."], 502);
         }
 
-        // Special days from config/holidays_special.php (mode: nager | manual | calendarific).
-        // null = use Nager's own special days; an array replaces them.
-        $specialOverride = $this->specialOverride($year);
-
         $islamicMode = config('holidays_special.islamic_mode', 'manual'); // [ISLAMIC] manual | nager | calendarific
 
-        $holidays = collect($rows)
+        $base = collect($rows)
             ->filter(fn ($h) => is_array($h) && isset($h['date'], $h['name']) && $this->isPublic($h))
             ->map(fn ($h) => [
                 'date' => (string) $h['date'],
@@ -53,9 +49,15 @@ class HolidayController extends Controller
                 'type' => $this->classify((string) $h['name'], (string) ($h['localName'] ?? '')),
                 'tentative' => false,
                 'source' => '',
-            ])
-            // [ISLAMIC] Only 'nager' mode keeps Nager's own Islamic days; the other modes supply their own.
-            ->reject(fn ($h) => $h['type'] === 'islamic' && $islamicMode !== 'nager')
+            ]);
+
+        // Special days from config/holidays_special.php (mode e.g. manual, manual+nager, manual+calendarific).
+        // null = keep Nager's own special days untouched; an array replaces them.
+        $specialOverride = $this->specialOverride($year, $base->where('type', 'special')->values()->all());
+
+        $holidays = $base
+            // [ISLAMIC] Nager's own Islamic days are kept only when 'nager' is one of the sources.
+            ->reject(fn ($h) => $h['type'] === 'islamic' && ! in_array('nager', $this->islamicSources($islamicMode), true))
             // [SPECIAL] When manual/calendarific supplies this year, it replaces Nager's special days.
             ->reject(fn ($h) => $specialOverride !== null && $h['type'] === 'special')
             ->values()
@@ -68,14 +70,30 @@ class HolidayController extends Controller
         ]);
     }
 
-    // [SPECIAL] Chooses the special-day source. Returns null to keep Nager's own special days.
-    private function specialOverride(int $year): ?array
+    // [SPECIAL] Chooses the special-day source(s). The mode can combine sources with "+",
+    // e.g. "manual+nager". Sources are merged in the order written; on the same date the first one wins,
+    // so put "manual" first to let the fixed list override the API's name/source.
+    // Returns null to keep Nager's own special days untouched.
+    private function specialOverride(int $year, array $nagerSpecial): ?array
     {
-        return match (config('holidays_special.mode', 'manual')) {
-            'manual' => $this->manualSpecialDays($year),
-            'calendarific' => $this->calendarificSpecialDays($year),
-            default => null, // 'nager'
-        };
+        $merged = [];
+        $used = false;
+
+        foreach (explode('+', strtolower((string) config('holidays_special.mode', 'manual'))) as $source) {
+            $list = match (trim($source)) {
+                'manual' => $this->manualSpecialDays($year),
+                'calendarific' => $this->calendarificSpecialDays($year),
+                'nager' => $nagerSpecial,
+                default => null,
+            };
+
+            if ($list !== null) {
+                $used = true;
+                $merged = array_merge($merged, $list);
+            }
+        }
+
+        return $used ? collect($merged)->unique('date')->values()->all() : null;
     }
 
     // [SPECIAL] Google/proclamation list in config/holidays_special.php. null if the year isn't listed.
@@ -100,18 +118,26 @@ class HolidayController extends Controller
             ->all();
     }
 
-    // [ISLAMIC] manual = config/holidays.php dates, calendarific = Calendarific, nager = none added here.
+    // [ISLAMIC] Sources can be combined with "+": manual (config/holidays.php dates), calendarific, nager.
+    // Merged in the order written; on the same date the first one wins, so write "manual" first.
+    // 'nager' needs nothing here (its own Islamic days are simply kept in show()).
     private function islamicByMode(string $mode, int $year): array
     {
-        if ($mode === 'nager') {
-            return [];
-        }
+        $merged = [];
 
-        if ($mode === 'calendarific') {
-            $rows = $this->calendarificRows($year);
+        foreach ($this->islamicSources($mode) as $source) {
+            if ($source === 'manual') {
+                $merged = array_merge($merged, $this->islamicHolidays($year));
+            } elseif ($source === 'calendarific') {
+                $rows = $this->calendarificRows($year);
 
-            if ($rows !== null) {
-                return collect($rows)
+                if ($rows === null) {
+                    Log::warning('Calendarific unavailable for Islamic days.');
+
+                    continue;
+                }
+
+                $merged = array_merge($merged, collect($rows)
                     ->filter(fn ($h) => is_array($h) && isset($h['name']) && data_get($h, 'date.iso') && $this->isOfficialIslamic((string) $h['name']))
                     ->map(function ($h) {
                         $raw = (string) $h['name'];
@@ -121,15 +147,22 @@ class HolidayController extends Controller
                             'tentative' => (bool) preg_match('/provisional|tentative/i', $raw),
                         ]);
                     })
-                    ->unique(fn ($h) => $h['date'] . '|' . $h['name'])
                     ->values()
-                    ->all();
+                    ->all());
             }
-
-            Log::warning('Calendarific unavailable for Islamic days; using manual dates.');
         }
 
-        return $this->islamicHolidays($year);
+        // Calendarific alone and it failed: fall back to the fixed dates so the page isn't empty.
+        if ($merged === [] && $this->islamicSources($mode) === ['calendarific']) {
+            return $this->islamicHolidays($year);
+        }
+
+        return collect($merged)->unique('date')->values()->all();
+    }
+
+    private function islamicSources(string $mode): array
+    {
+        return array_values(array_filter(array_map('trim', explode('+', strtolower($mode)))));
     }
 
     // [SPECIAL] Calendarific: keep its national holidays that our own classify() calls "special"

@@ -10,6 +10,11 @@
 |   HOLIDAYS_SPECIAL_MODE=manual         Google/proclamation list below (default)
 |   HOLIDAYS_SPECIAL_MODE=calendarific   Calendarific API (needs CALENDARIFIC_KEY)
 |
+| Combine sources with "+" (the first one wins when two give the same date):
+|   HOLIDAYS_SPECIAL_MODE=manual+nager          fixed list + Nager.Date
+|   HOLIDAYS_SPECIAL_MODE=manual+calendarific   fixed list + Calendarific
+|   HOLIDAYS_SPECIAL_MODE=manual+nager+calendarific   all three
+|
 | Regular and Islamic days are NOT affected by this setting.
 |
 | manual: for every year listed in 'years', that list REPLACES the special
@@ -26,7 +31,7 @@ return [
 
     'mode' => env('HOLIDAYS_SPECIAL_MODE', 'manual'),
 
-    // Islamic days (Eid'l Fitr / Eid'l Adha): manual = islamic_dates in config/holidays.php, nager = Nager.Date, calendarific = Calendarific
+    // Islamic days (Eid'l Fitr / Eid'l Adha): manual, calendarific, nager, or combined with "+" (e.g. manual+calendarific). See .env examples
     'islamic_mode' => env('HOLIDAYS_ISLAMIC_MODE', 'manual'),
 
     'calendarific' => [
