@@ -91,6 +91,19 @@ class RegisterRequest extends FormRequest
                 function ($attribute, $value, $fail) use ($country) {
                     if ($country && ! preg_match('/' . $country['zip'] . '/', $value)) {
                         $fail($country['zip_hint']);
+                        return;
+                    }
+
+                    // Metro Manila (NCR): the ZIP must belong to the chosen city (config/ncr_zips.php).
+                    if ($country && $country['name'] === 'Philippines'
+                        && trim((string) $this->input('state')) === 'Metro Manila (NCR)') {
+                        $cityZips = config('ncr_zips')[trim((string) $this->input('city'))] ?? null;
+
+                        if ($cityZips === null) {
+                            $fail('Please choose a city from the Metro Manila list.');
+                        } elseif (! array_key_exists($value, $cityZips)) {
+                            $fail('That ZIP code does not belong to the selected city.');
+                        }
                     }
                 },
             ],

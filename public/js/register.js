@@ -97,6 +97,15 @@
             return '';
         },
 
+        // house_street: function () {
+        //     var v = text('house_street');
+        //     if (!v) { return 'House and street is required.'; }
+        //     if (v.length > 255 || !/^[A-Za-z0-9\s.,#\/'&()\-]+$/.test(v)) { 
+        //         return 'House and street can only contain letters, numbers, spaces, and . , # / \' & ( ) -'; 
+        //     }
+        //     return '';
+        // },
+
         state: function () {
             var v = text('state');
             if (!v) { return 'State is required.'; }
@@ -253,6 +262,21 @@
         return list.map(function (v) { return { value: String(v), label: String(v) }; });
     }
 
+    // Philippine ZIPs come as { code, area }, shown like "1403 - Grace Park (East)" (just the code when there is no area).
+    function phZipItems(list) {
+        return list.map(function (z) {
+            return { value: String(z.code), label: z.area ? z.code + ' - ' + z.area : String(z.code) };
+        });
+    }
+
+    // Last choice in the ZIP dropdown outside Metro Manila: the list is only a suggestion.
+    var ZIP_OTHER = '__other__';
+
+    // Metro Manila has a fixed ZIP list per city, so it is a dropdown even though the Philippines is typed elsewhere.
+    function isNcr(c, state) {
+        return c.name === 'Philippines' && state === 'Metro Manila (NCR)';
+    }
+
     // o = values to put back after a server error ({} when the user just changed a dropdown).
     function startState(o) {
         resetField('city', 'Select a state / province first', true);
@@ -301,12 +325,29 @@
             return Promise.resolve();
         }
 
-        if (!zipLookup[c.name]) {
+        var ph = c.name === 'Philippines';
+        var ncr = isNcr(c, field('state').value);
+
+        if (!zipLookup[c.name] && !ph) {
             useText('zip_code', o.zip_code, 'ZIP codes are not listed for this country, so please type yours.');
             return Promise.resolve();
         }
 
-        return load('zip_code', urls.zips, { country: c.name, state: field('state').value, city: city }, plainItems, o.zip_code, 'ZIP code');
+        var loading = load('zip_code', urls.zips, { country: c.name, state: field('state').value, city: city }, ph ? phZipItems : plainItems, o.zip_code, 'ZIP code');
+
+        // Metro Manila: the list is the only choice (the server checks it too).
+        if (!ph || ncr) { return loading; }
+
+        // Other provinces: the list is only a suggestion, so the user can type a ZIP that is not listed.
+        return loading.then(function (r) {
+            if (r === true) {
+                el('zip_code').appendChild(option(ZIP_OTHER, 'My ZIP code is not listed'));
+                if (o.zip_code && !hasOption(el('zip_code'), o.zip_code)) {
+                    useText('zip_code', o.zip_code, 'Type your 4-digit ZIP code.');
+                }
+            }
+            return r;
+        });
     }
 
     function syncCountry() {
@@ -354,6 +395,15 @@
 
     el('state').addEventListener('change', function () { startCity({}); });
     el('city').addEventListener('change', function () { startZip({}); });
+
+    // "My ZIP code is not listed": switch the ZIP field to typing.
+    el('zip_code').addEventListener('change', function () {
+        if (this.value !== ZIP_OTHER) { return; }
+        useText('zip_code', '', 'Type your 4-digit ZIP code.');
+        el('zip_code_text').focus();
+        delete touched.zip_code;
+        showError('zip_code', '');
+    });
 
     // Show / hide password.
     Array.prototype.forEach.call(form.querySelectorAll('[data-toggle-for]'), function (btn) {
