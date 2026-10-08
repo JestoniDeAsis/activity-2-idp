@@ -17,7 +17,6 @@ use Illuminate\View\View;
 use App\Events\OtpRequested;
 use App\Services\OtpService;
 use App\Events\EmailVerificationRequested;
-use App\Services\EmailResendService;
 
 class AuthController extends Controller
 {
@@ -73,7 +72,7 @@ class AuthController extends Controller
         return view('auth.login');
     }
 
-        public function login(Request $request, OtpService $otp, EmailResendService $resends): RedirectResponse
+    public function login(Request $request, OtpService $otp): RedirectResponse
     {
         $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
 
@@ -103,7 +102,7 @@ class AuthController extends Controller
                 return $this->loginFailed($request);
             }
 
-            return $this->sendUnlockEmail($user, $request, $resends);
+            return $this->sendUnlockEmail($user, $request);
         }
 
         // Email not verified yet. The password is checked first, so the "not verified" page is only
@@ -115,7 +114,7 @@ class AuthController extends Controller
                 return $this->loginFailed($request);
             }
 
-            return $this->sendToEmailVerification($user, $request, $resends);
+            return $this->sendToEmailVerification($user, $request);
         }
 
         if (! Hash::check($credentials['password'], $user->password_hash)) {
@@ -156,48 +155,28 @@ class AuthController extends Controller
             ->withErrors(['login' => 'Invalid email or password. If your account is locked, check your email for the unlock link.']);
     }
 
-    // Right password but email not verified: send a new link (within the 5 per hour limit)
-    // and open the "Check your email" page.
-    private function sendToEmailVerification(User $user, Request $request, EmailResendService $resends): RedirectResponse
+    // Right password but email not verified: send a new link and open the "Check your email" page.
+    private function sendToEmailVerification(User $user, Request $request): RedirectResponse
     {
         // The password was right, so remember who this is (used by the Resend button).
         $request->session()->put('pending_user_id', $user->id);
-
-        if ($resends->exhausted($request)) {
-            $minutes = $resends->minutesLeft($request);
-
-            return redirect()->route('check-email')
-                ->with('email', $user->email);
-        }
-
-        $left = $resends->consume($request);
 
         event(new EmailVerificationRequested($user));
 
         return redirect()->route('check-email')
             ->with('email', $user->email)
-            ->with('status', 'Your email is not verified yet. We sent a new verification link to your inbox. You have ' . $left . ' resend' . ($left === 1 ? '' : 's') . ' left this hour.');
+            ->with('status', 'Your email is not verified yet. We sent a new verification link to your inbox.');
     }
 
-        // Right password on a locked account: send the unlock email again (within the 5 per hour limit).
+    // Right password on a locked account: send the unlock email again.
     // The 2-minute cooling period still counts from when the account was locked.
-    private function sendUnlockEmail(User $user, Request $request, EmailResendService $resends): RedirectResponse
+    private function sendUnlockEmail(User $user, Request $request): RedirectResponse
     {
-        if ($resends->exhausted($request)) {
-            $minutes = $resends->minutesLeft($request);
-
-            return redirect()->route('login')
-                ->withInput($request->only('email'))
-                ->withErrors(['login' => 'Your account is locked, and you have used all ' . EmailResendService::MAX . ' emails for now. Please try again in ' . $minutes . ' minute' . ($minutes === 1 ? '' : 's') . '.']);
-        }
-
-        $left = $resends->consume($request);
-
         event(new AccountLocked($user));
 
         return redirect()->route('login')
             ->withInput($request->only('email'))
-            ->withErrors(['login' => 'Your account is locked. We sent an unlock link to your email. For your protection, the link only works 2 minutes after the account was locked. You have ' . $left . ' email' . ($left === 1 ? '' : 's') . ' left this hour.']);
+            ->withErrors(['login' => 'Your account is locked. We sent an unlock link to your email. For your protection, the link only works 2 minutes after the account was locked.']);
     }
 
     // Only called for a wrong password on an existing, verified, unlocked account.

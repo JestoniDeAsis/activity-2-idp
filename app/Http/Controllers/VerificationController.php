@@ -10,7 +10,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
-use App\Services\EmailResendService;
 use App\Services\OtpService;
 
 class VerificationController extends Controller
@@ -20,7 +19,7 @@ class VerificationController extends Controller
         return view('auth.check-email');
     }
 
-    public function resend(Request $request, EmailResendService $resends, OtpService $otp): RedirectResponse
+    public function resend(Request $request, OtpService $otp): RedirectResponse
     {
         $request->validate([
             'email' => ['required', 'email', 'max:255'],
@@ -29,8 +28,7 @@ class VerificationController extends Controller
         $email = Str::lower(trim($request->input('email')));
 
         // Registered (or logged in with the right password) in this browser, and the email was
-        // verified meanwhile (other tab or phone): go on to the mobile step. No email is sent
-        // and no resend is used.
+        // verified meanwhile (other tab or phone): go on to the mobile step. No email is sent.
         $pending = $request->session()->has('pending_user_id')
             ? User::find($request->session()->get('pending_user_id'))
             : null;
@@ -65,22 +63,11 @@ class VerificationController extends Controller
                 ->with('status', 'This email is already verified. You can log in.');
         }
 
-        // Only a real send uses up one of the 5 resends per IP address per hour (shared with the login page).
-        if ($resends->exhausted($request)) {
-            $minutes = $resends->minutesLeft($request);
-
-            return redirect()->route('check-email')
-                ->with('email', $email)
-                ->withErrors(['email' => 'You have used all ' . EmailResendService::MAX . ' resends for now. Please try again in ' . $minutes . ' minute' . ($minutes === 1 ? '' : 's') . '.']);
-        }
-
-        $left = $resends->consume($request);
-
         event(new EmailVerificationRequested($user));
 
         return redirect()->route('check-email')
             ->with('email', $email)
-            ->with('status', 'We sent a new verification link to your inbox. You have ' . $left . ' resend' . ($left === 1 ? '' : 's') . ' left this hour.');
+            ->with('status', 'We sent a new verification link to your inbox.');
     }
 
     public function verify(Request $request, TokenService $tokens): View|RedirectResponse
